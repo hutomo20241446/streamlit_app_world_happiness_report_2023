@@ -183,25 +183,50 @@ def box_plot(region_whr_df):
 
 # FUNGSI GEOGRAFIS
 def geografis(region_whr_df):
-    world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+    # Membaca dataset naturalearth_lowres dari URL langsung
+    world = gpd.read_file("https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/world-countries.geojson")
+
     # Mengganti 'United States' dengan 'United States of America'
     region_whr_df.loc[region_whr_df['Country name'] == 'United States', 'Country name'] = 'United States of America'
                              
+    # Menggabungkan data geografis dengan data indeks kebahagiaan
     for_plotting = world.merge(region_whr_df, left_on='name', right_on='Country name')
 
     # Membuat peta interaktif dengan Plotly Express
-    fig = px.choropleth(for_plotting,
-                        title='Peta distribusi indeks kebahagiaan negara di seluruh dunia', 
-                        locations='iso_a3', 
-                        color='Ladder score', 
-                        hover_name='Country name', 
-                        color_continuous_scale='YlGnBu')
-    
-    title=dict(text='Distribusi indeks kebahagiaan berdasarkan Region',
-                font=dict(size=20, color='black'), xanchor='center', y=0.1),  # Menyesuaikan posisi judul
+    fig = px.choropleth(
+        for_plotting,
+        title='Peta distribusi indeks kebahagiaan negara di seluruh dunia', 
+        locations='iso_a3', 
+        color='Ladder score', 
+        hover_name='Country name', 
+        color_continuous_scale='YlGnBu'
+    )
     
     # Menampilkan peta menggunakan Streamlit
     st.plotly_chart(fig, use_container_width=True)
+
+
+
+# def geografis(region_whr_df):
+#     world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+#     # Mengganti 'United States' dengan 'United States of America'
+#     region_whr_df.loc[region_whr_df['Country name'] == 'United States', 'Country name'] = 'United States of America'
+                             
+#     for_plotting = world.merge(region_whr_df, left_on='name', right_on='Country name')
+
+#     # Membuat peta interaktif dengan Plotly Express
+#     fig = px.choropleth(for_plotting,
+#                         title='Peta distribusi indeks kebahagiaan negara di seluruh dunia', 
+#                         locations='iso_a3', 
+#                         color='Ladder score', 
+#                         hover_name='Country name', 
+#                         color_continuous_scale='YlGnBu')
+    
+#     title=dict(text='Distribusi indeks kebahagiaan berdasarkan Region',
+#                 font=dict(size=20, color='black'), xanchor='center', y=0.1),  # Menyesuaikan posisi judul
+    
+#     # Menampilkan peta menggunakan Streamlit
+#     st.plotly_chart(fig, use_container_width=True)
 
     
     
