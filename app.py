@@ -1,127 +1,133 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
+import io
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import geopandas as gpd
 import plotly.express as px
+ 
 
-st.set_page_config(page_title="World Happiness Report 2023")
+st.set_page_config(
+    page_title="World Happiness Report 2023"
+)
 
-# Dataset Shapefile untuk GeoPandas
-SHAPEFILE_PATH = "dataset_pelengkap/naturalearth_lowres.shp"
+# membuat objek parser ()
+html_page = requests.get("https://worldhappiness.report/data/")
+soup = BeautifulSoup(html_page.content, "html.parser")
 
-# Membaca dataset utama dan pelengkap
-def load_data():
-    # WHR 2023 Dataset
-    whr_df = pd.read_excel('dataset_pelengkap/whr2023.xls')
+# membuat dataset1 WHR023
 
-    # Regional Dataset
-    by_region_df = pd.read_csv('dataset_pelengkap/continents2.csv')
-    by_region_df = by_region_df[['name', 'alpha-2', 'region', 'sub-region']]
-    by_region_df.rename(columns={'name': 'Country name', 'alpha-2': 'Country code', 'region': 'Region', 'sub-region': 'Sub-region'}, inplace=True)
+whr_df = pd.read_excel('dataset_pelengkap/whr2023.xls')
 
-    # Merge dataset
-    region_whr_df = by_region_df.merge(whr_df, on='Country name', how='right')
+# dataset2 regional (pelengkap)
+by_region_df = pd.read_csv('dataset_pelengkap/continents2.csv')
+by_region_df = by_region_df[['name', 'alpha-2', 'region', 'sub-region']]
+by_region_df.rename(columns={'name': 'Country name', 'alpha-2': 'Country code', 'region': 'Region', 'sub-region': 'Sub-region'}, inplace=True)
 
-    # Cleaning missing values
-    null_value = region_whr_df['Healthy life expectancy'].isnull()
-    zero_indices = region_whr_df[null_value].index
-    region_whr_df.loc[zero_indices, 'Healthy life expectancy'] = region_whr_df['Healthy life expectancy'].mean()
-    
-    return region_whr_df
+#merge dataset1 dan dataset2
+region_whr_df = by_region_df.merge(whr_df, on= 'Country name', how = 'right')
 
-region_whr_df = load_data()
+# cleaning dataset
+null_value = region_whr_df['Healthy life expectancy'].isnull()
+zero_indices = region_whr_df[null_value].index
+region_whr_df.loc[zero_indices, 'Healthy life expectancy'] = region_whr_df['Healthy life expectancy'].mean()
 
-# Fungsi Dataset
+#fungsi dataset WHR2023
 def dataset(region_whr_df):
+    # menampilkan dataset
     def load_dataset(region):
         if region == 'All':
             return region_whr_df
         else:
-            return region_whr_df[
-                ['Country name', 'Country code', 'Region', 'Sub-region', 'Ladder score', 'Logged GDP per capita',
-                 'Social support', 'Healthy life expectancy', 'Freedom to make life choices', 'Generosity',
-                 'Perceptions of corruption']
-            ][region_whr_df['Region'] == region].sort_values(by=['Sub-region', 'Ladder score'],
-                                                             ascending=False).reset_index(drop=True)
+            return region_whr_df[['Country name', 'Country code', 'Region', 'Sub-region', 'Ladder score',
+          'Logged GDP per capita', 'Social support', 'Healthy life expectancy',
+          'Freedom to make life choices', 'Generosity',
+          'Perceptions of corruption']][region_whr_df['Region'] == region].sort_values(by=['Sub-region','Ladder score'], ascending=False).reset_index(drop=True)
+    # tab untuk menampilkan dataset per region
+    regions = ['All','Africa','Americas', 'Asia','Europe', 'Oceania' ]
+    # Pilih tab
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(regions)
+    # Isi konten untuk setiap tab
+    with tab1:
+        selected_dataset = load_dataset('All')
+        st.write(selected_dataset)
 
-    regions = ['All', 'Africa', 'Americas', 'Asia', 'Europe', 'Oceania']
-    tabs = st.tabs(regions)
+    with tab2:
+        selected_dataset = load_dataset('Africa')
+        st.write(selected_dataset)
 
-    for i, region in enumerate(regions):
-        with tabs[i]:
-            selected_dataset = load_dataset(region)
-            st.write(selected_dataset)
+    with tab3:
+        selected_dataset = load_dataset('Americas')
+        st.write(selected_dataset)
 
-# Fungsi Bar Chart
+    with tab4:
+        selected_dataset = load_dataset('Asia')
+        st.write(selected_dataset)
+
+    with tab5:
+        selected_dataset = load_dataset('Europe')
+        st.write(selected_dataset)
+
+    with tab6:
+        selected_dataset = load_dataset('Oceania')
+        st.write(selected_dataset)
+
+# fungsi menampilkan peringkat negara-negara berdasarkan ladder score
 def bar_chart_country(region_whr_df):
+    # Define color palette
     subregion_palette = sns.color_palette("husl", len(region_whr_df["Sub-region"].unique()))
     subregion_color_map = {subregion: subregion_palette[i] for i, subregion in enumerate(region_whr_df["Sub-region"].unique())}
-
+    # Set up streamlit sidebar
     country_list = region_whr_df["Region"].unique().tolist()
     country_list.insert(0, "All")
     select_region = st.selectbox('Filter the region here:', country_list)
-
-    min_score = region_whr_df["Ladder score"].min()
-    max_score = region_whr_df["Ladder score"].max()
-    score_range = st.slider('Adjust ladder score range:', min_value=float(min_score), max_value=float(max_score),
-                            value=(min_score, max_score), step=0.5)
-
+    # Add ladder score slider
+    score_range = st.slider('Adjust ladder score range:',
+                            # min_value=region_whr_df["Ladder score"].min(),
+                            # max_value=region_whr_df["Ladder score"].max(),
+                            min_value=1.0, max_value=8.0,
+                            # value=(region_whr_df["Ladder score"].min(), region_whr_df["Ladder score"].max()),
+                            value=(6.0, 8.0),
+                            step=0.5)
+    # Apply filters
     if select_region == "All":
         filtered_df = region_whr_df[(region_whr_df["Ladder score"] >= score_range[0]) &
                                     (region_whr_df["Ladder score"] <= score_range[1])]
+        # Plotting
+        plt.figure(figsize=(30, 12))
+        plt.bar(filtered_df["Country name"], filtered_df['Ladder score'], color='skyblue')
+        plt.title('Indeks Kebahagiaan Negara-negara di Seluruh Dunia', fontsize=20)
+        plt.xlabel('Nama Negara', fontsize=16)
+        plt.ylabel('Indeks Kebahagiaan (Ladder Score)', fontsize=16)
+        plt.xticks(rotation=90, fontsize=16)
+        st.set_option('deprecation.showPyplotGlobalUse', False)
+        st.pyplot()
     else:
         filtered_df = region_whr_df[(region_whr_df["Region"] == select_region) &
                                     (region_whr_df["Ladder score"] >= score_range[0]) &
                                     (region_whr_df["Ladder score"] <= score_range[1])]
-
-    plt.figure(figsize=(12, 6))
-    bars = plt.bar(filtered_df["Country name"], filtered_df['Ladder score'],
-                   color=[subregion_color_map[subregion] for subregion in filtered_df["Sub-region"]])
-    plt.title('Indeks Kebahagiaan Negara-negara', fontsize=20)
-    plt.xlabel('Nama Negara', fontsize=16)
-    plt.ylabel('Indeks Kebahagiaan (Ladder Score)', fontsize=16)
-    plt.xticks(rotation=90, fontsize=12)
-    plt.legend([plt.Rectangle((0, 0), 1, 1, color=subregion_color_map[sub]) for sub in filtered_df["Sub-region"].unique()],
-               filtered_df["Sub-region"].unique(), title="Subregion")
-    st.pyplot()
-
-# Fungsi GeoPandas untuk Peta
-def geografis(region_whr_df):
-    try:
-        world = gpd.read_file(SHAPEFILE_PATH)
-    except Exception as e:
-        st.error(f"Error loading shapefile: {e}")
-        return
-
-    region_whr_df.loc[region_whr_df['Country name'] == 'United States', 'Country name'] = 'United States of America'
-
-    merged_df = world.merge(region_whr_df, how="left", left_on="name", right_on="Country name")
-    fig = px.choropleth(
-        merged_df,
-        geojson=merged_df.geometry,
-        locations=merged_df.index,
-        color="Ladder score",
-        hover_name="name",
-        projection="natural earth",
-        title="World Happiness Map",
-    )
-    st.plotly_chart(fig)
-
-# Tampilan Streamlit
-st.title("World Happiness Report 2023")
-st.markdown("## Menjelajahi Indeks Kebahagiaan Dunia Berdasarkan WHR 2023")
-
-menu = st.sidebar.selectbox("Pilih Menu", ["Dataset", "Bar Chart", "Map"])
-if menu == "Dataset":
-    dataset(region_whr_df)
-elif menu == "Bar Chart":
-    bar_chart_country(region_whr_df)
-elif menu == "Map":
-    geografis(region_whr_df)
-
+        # Plotting
+        plt.figure(figsize=(12, 6))
+        bars = plt.bar(filtered_df["Country name"], filtered_df['Ladder score'], color=[subregion_color_map[subregion] for subregion in filtered_df["Sub-region"]])
+        plt.title('Indeks Kebahagiaan Negara-negara di ' + select_region, fontsize=20)
+        plt.xlabel('Nama Negara', fontsize=16)
+        plt.ylabel('Indeks Kebahagiaan (Ladder Score)', fontsize=16)
+        plt.xticks(rotation=90, fontsize=12)
+        # Create legend manually
+        legend_handles = []
+        legend_labels = []
+        for subregion in region_whr_df["Sub-region"].unique():
+            legend_handles.append(plt.Rectangle((0,0),1,1, color=subregion_color_map[subregion]))
+            legend_labels.append(subregion)
+        plt.legend(legend_handles, legend_labels, title="Subregion", bbox_to_anchor=(1.05, 1), loc='upper left')
+        st.set_option('deprecation.showPyplotGlobalUse', False)
+        st.pyplot()
+    # Display number of observations, updates dynamically
+    number_of_results = filtered_df.shape[0]
+    st.markdown(f'*Available Results: {number_of_results}*')
+    st.markdown("---")
 
 ### FUNGSI BAR CHART
 def bar_chart_region(region_whr_df):
